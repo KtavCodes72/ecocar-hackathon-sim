@@ -1,10 +1,10 @@
 """Builds the telemetry dashboard's data file from sim runs.
 
     python dashboard/build.py                     # latest run per (team, course) under runs/
-    python dashboard/build.py --teams apex baseline
+    python dashboard/build.py --teams kyle_and_braden baseline
     python dashboard/build.py runs/<stamp>_<team>_<course> ...
-    python dashboard/build.py --fresh              # re-run apex + baseline on the public courses first
-    python dashboard/build.py --fresh -t "tracks/mock/*.yaml" -c controllers/apex_planner.py:apex
+    python dashboard/build.py --fresh              # re-run the submission + baseline on the public courses first
+    python dashboard/build.py --fresh -t "tracks/mock/*.yaml" -c submission/kyle_and_braden.py:kyle_and_braden
 
 Writes dashboard/data.js (loaded by dashboard/index.html, which works straight from disk).
 
@@ -164,7 +164,7 @@ def main():
     a = ap.parse_args()
 
     if a.fresh:
-        ctrls = a.controller or ["controllers/apex_planner.py:apex", "controllers/baseline_pure_pursuit.py:baseline"]
+        ctrls = a.controller or ["submission/kyle_and_braden.py:kyle_and_braden", "controllers/baseline_pure_pursuit.py:baseline"]
         dirs = fresh_runs(ctrls, a.tracks or ["tracks/*.yaml"], a.jobs)
     else:
         dirs = [Path(p) for p in a.runs] or [Path(p).parent for p in glob.glob(str(ROOT / "runs" / "*" / "summary.json"))]

@@ -13,15 +13,15 @@ Rebuild it after changing the controller:
 .venv/bin/python dashboard/build.py --fresh -c submission/kyle_and_braden.py:kyle_and_braden \
     -c controllers/baseline_pure_pursuit.py:baseline -t "tracks/*.yaml" -t "tracks/mock/*.yaml" -t "tracks/bench/*.yaml"
 
-# run apex_planner + the baseline on the public courses only (about 20 s)
+# run the submission + the baseline on the public courses only (about 20 s)
 .venv/bin/python dashboard/build.py --fresh
 
 # more courses / other controllers
 .venv/bin/python dashboard/build.py --fresh -t "tracks/*.yaml" -t "tracks/mock/*.yaml" \
-    -c controllers/apex_planner.py:apex -c controllers/baseline_pure_pursuit.py:baseline
+    -c submission/kyle_and_braden.py:kyle_and_braden -c controllers/baseline_pure_pursuit.py:baseline
 
 # or build from runs you already have (latest per team and course)
-.venv/bin/python dashboard/build.py --teams apex baseline
+.venv/bin/python dashboard/build.py --teams kyle_and_braden baseline
 
 # serve it (or just open dashboard/index.html in a browser)
 .venv/bin/python -m http.server 8765 --directory dashboard
