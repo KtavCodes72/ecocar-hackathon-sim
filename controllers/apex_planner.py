@@ -9,8 +9,10 @@ Each step (road model only, no map):
      so consecutive plans agree (the path-deviation score compares against a 0.5 s old plan).
   3. Speed: friction-ellipse forward/backward pass over the planned path's curvature; the end
      of the preview is treated as a possible tight unseen corner.
-  4. Tracking: pure pursuit on the planned path (each plan is anchored to the previous one,
-     so drift shows up as tracking error), slew-limited below the actuator limit. Longitudinal: acceleration feedforward + PI.
+  4. Tracking: curvature feedforward + lateral/heading feedback on the planned path, evaluated
+     at the pose predicted after actuator lag (pure pursuit kept as ``tracker: pp``). Each plan
+     is anchored to the previous one, so drift shows up as tracking error. Steering is capped
+     at the grip limit and slew-limited below the actuator limit. Longitudinal: acceleration feedforward + PI.
 
 Only depends on numpy and autocross.api."""
 from __future__ import annotations
@@ -31,21 +33,29 @@ class ApexPlanner(Controller):
         self.half_w = 0.5 * vp.width
         self.half_l = 0.5 * vp.length
         self.edge_margin = float(c.get("edge_margin", 0.65))      # clearance to boundary cones (covers body sweep when yawed)
-        self.obs_margin = float(c.get("obs_margin", 0.40))        # extra clearance to obstacle cones
-        self.lat_frac = float(c.get("lat_frac", 0.75))            # share of mu*g used for cornering
-        self.lon_frac = float(c.get("lon_frac", 0.50))            # share of braking used in planning
+        self.obs_margin = float(c.get("obs_margin", 0.60))        # extra clearance to obstacle cones
+        self.lat_frac = float(c.get("lat_frac", 0.85))            # share of mu*g used for cornering
+        self.lon_frac = float(c.get("lon_frac", 0.65))            # share of braking used in planning
         self.v_max = float(c.get("v_max", 30.0))
-        self.r_unseen = float(c.get("r_unseen", 9.0))             # assumed radius just past the preview
+        self.r_unseen = float(c.get("r_unseen", 15.0))             # assumed radius just past the preview
         self.w_curv = float(c.get("w_curv", 1.0))
         self.w_slope = float(c.get("w_slope", 0.02))
         self.w_prev = float(c.get("w_prev", 0.02))
         self.k_ld = float(c.get("lookahead_gain", 0.5))
         self.ld_min = float(c.get("lookahead_min", 2.0))
+        self.tracker = str(c.get("tracker", "ff"))                 # pp = pure pursuit, ff = feedforward+feedback
+        self.t_pred = float(c.get("t_pred", 0.10))                 # s, actuator-lag prediction
+        self.ff_ahead = float(c.get("ff_ahead", 0.05))             # s, feedforward curvature preview
+        self.ell_gain = float(c.get("ell_gain", 0.30))
+        self.ell_min = float(c.get("ell_min", 3.0))
+        self.zeta = float(c.get("zeta", 0.7))
+        self.grip_cap = float(c.get("grip_cap", 1.0))             # max steer as a share of grip-limited steer
         self.reanchor = float(c.get("reanchor_m", 0.6))
         self.ease_m = float(c.get("ease_m", 8.0))
         self.kp, self.ki = float(c.get("kp", 0.6)), float(c.get("ki", 0.15))
         self.a_smooth = float(c.get("a_smooth", 0.5))            # low-pass factor on the accel command
 
+        self.t_pred += vp.actuation_delay_steps * vp.control_dt   # published actuation delay
         self.a_lat = self.lat_frac * vp.mu * G
         self.a_dec = self.lon_frac * vp.max_decel
         self.a_acc = vp.max_accel
@@ -159,6 +169,36 @@ class ApexPlanner(Controller):
             fwd[i + 1] = min(v[i + 1], math.sqrt(fwd[i] ** 2 + 2.0 * a * ds[i]))
         return v, fwd
 
+    # ------------------------------------------------------------------ tracking
+    def _track_ff(self, path, k, s, v, obs):
+        """Curvature feedforward + lateral/heading feedback, evaluated at the pose the car will
+        have after the actuator lag. Spatial second-order error dynamics e'' = delta/L - kappa
+        closed with natural length ``ell`` (grows with speed for stability)."""
+        vp = self.vehicle
+        tp = self.t_pred
+        # predicted pose (vehicle frame) after tp seconds, constant speed and yaw rate
+        yr = obs.yaw_rate
+        th = yr * tp
+        px = v * tp * (1.0 - th * th / 6.0)
+        py = v * tp * th / 2.0
+        d = np.hypot(path[:, 0] - px, path[:, 1] - py)
+        j = int(np.argmin(d))
+        j1 = min(max(j - (1 if j == len(path) - 1 else 0), 0), len(path) - 2)
+        a, b = path[j1], path[j1 + 1]
+        seg = b - a
+        L = max(math.hypot(*seg), 1e-6)
+        rel = np.array([px, py]) - a
+        u = float(np.clip((rel @ seg) / (L * L), 0.0, 1.0))
+        e = (seg[0] * rel[1] - seg[1] * rel[0]) / L                   # + = car left of path
+        th_err = th - math.atan2(seg[1], seg[0])                       # + = car points left of path
+        th_err = (th_err + math.pi) % (2 * math.pi) - math.pi
+        s_here = s[j1] + u * L
+        k_ff = float(np.interp(s_here + v * self.ff_ahead, s, k))
+        ell = max(self.ell_min, self.ell_gain * v)
+        k_e, k_th = 1.0 / (ell * ell), 2.0 * self.zeta / ell
+        kappa_cmd = k_ff - k_e * e - k_th * th_err
+        return math.atan(vp.wheelbase * kappa_cmd)
+
     # ------------------------------------------------------------------ step
     def step(self, obs: Observation) -> Command:
         road, vp = obs.road, self.vehicle
@@ -186,15 +226,23 @@ class ApexPlanner(Controller):
         k, s = self._curvature(path)
         v_back, v_prof = self._speed_profile(k, s, v)
 
-        # ---- lateral: pure pursuit on the planned path
-        ld = float(np.clip(self.k_ld * v + self.ld_min, self.ld_min, 14.0))
-        r = np.hypot(path[:, 0], path[:, 1])
-        ahead = (path[:, 0] > 0.5) & (r >= ld)
-        tgt = path[int(np.argmax(ahead))] if ahead.any() else path[-1]
-        alpha = math.atan2(tgt[1], max(tgt[0], 0.1))
-        delta = math.atan2(2.0 * vp.wheelbase * math.sin(alpha), max(math.hypot(*tgt), 1.0))
         e = float(np.interp(0.0, path[:, 0], path[:, 1])) if path[0, 0] <= 0.0 <= path[-1, 0] else float(path[0, 1])
         kff = float(np.interp(v * 0.2, s, k))
+        if self.tracker == "ff":
+            delta = self._track_ff(path, k, s, v, obs)
+        else:
+            # pure pursuit on the planned path
+            ld = float(np.clip(self.k_ld * v + self.ld_min, self.ld_min, 14.0))
+            r = np.hypot(path[:, 0], path[:, 1])
+            ahead = (path[:, 0] > 0.5) & (r >= ld)
+            tgt = path[int(np.argmax(ahead))] if ahead.any() else path[-1]
+            alpha = math.atan2(tgt[1], max(tgt[0], 0.1))
+            delta = math.atan2(2.0 * vp.wheelbase * math.sin(alpha), max(math.hypot(*tgt), 1.0))
+        # never command more steering than the tyres can use at this speed (the realism score
+        # flags commands needing >110% of grip, and they only scrub speed anyway)
+        if v > 3.0:
+            d_max = math.atan(self.grip_cap * vp.mu * G * vp.wheelbase / (v * v))
+            delta = float(np.clip(delta, -d_max, d_max))
         steer = float(np.clip(delta / vp.max_steer, -1.0, 1.0))
         steer = float(np.clip(steer, self.last_steer - self.steer_step, self.last_steer + self.steer_step))
         self.last_steer = steer
