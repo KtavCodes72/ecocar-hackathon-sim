@@ -64,8 +64,8 @@ button, select, input { font: inherit; color: inherit; }
 canvas { display: block; width: 100%; height: 100%; }
 .geo { height: 430px; }
 .tiles-p { height: 430px; }
-.ts { height: 720px; }
-.chan { height: 720px; }
+.ts { height: 560px; }
+.chan { height: 560px; }
 .bottom { grid-column: 1 / 3; min-height: 330px; }
 
 /* ---- geo overlays ---- */
@@ -79,12 +79,12 @@ canvas { display: block; width: 100%; height: 100%; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 
 /* ---- tiles ---- */
-.tiles { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); }
+.tiles { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); }
 .tile { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 8px 12px; display: flex; flex-direction: column; background: var(--neutral); transition: background .25s; min-width: 0; }
 .tile:nth-child(4n) { border-right: 0; }
 .tile:nth-last-child(-n+4) { border-bottom: 0; }
 .tile .lab { text-align: right; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .val { flex: 1; display: flex; align-items: center; justify-content: center; font-size: clamp(22px, 3.1vw, 50px); font-weight: 300; letter-spacing: -.02em; white-space: nowrap; }
+.tile .val { flex: 1; display: flex; align-items: center; justify-content: center; font-size: clamp(26px, 3.6vw, 60px); font-weight: 300; letter-spacing: -.02em; white-space: nowrap; }
 .tile .vv { display: inline-flex; align-items: baseline; }
 .tile .unit { font-size: .38em; color: var(--dim); margin-left: 4px; }
 .tile.ok { background: var(--ok); } .tile.ok .val { color: #bdf5cf; }
@@ -187,8 +187,8 @@ tr.cur td { background: #10262b; }
 
       <section class="panel chan" id="pChan">
         <div class="ph"><span class="grip">⋮⋮</span><span class="title">Channel table</span><span class="ic" data-max="pChan" title="Maximize">⤢</span></div>
-        <div class="ctool"><input id="filter" placeholder="Filter channels…"></div>
-        <div class="pb"><div class="ctab"><table><thead><tr><th>STREAM ID</th><th>CHANNEL</th><th class="num">VALUE</th></tr></thead><tbody id="chanBody"></tbody></table></div></div>
+        <div class="ctool"><input id="filter" placeholder="Filter channels…"><label class="muted" style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="allCh"> show all</label></div>
+        <div class="pb"><div class="ctab"><table><thead id="chanHead"></thead><tbody id="chanBody"></tbody></table></div></div>
       </section>
 
       <section class="panel bottom" id="pBottom">
@@ -383,15 +383,11 @@ $("follow").onclick = () => { S.follow = !S.follow; $("follow").classList.toggle
 const TILES = [
   { k: "speed_kph", lab: "vehicle_speed_kph", d: 0, st: () => "neutral" },
   { k: "grip_use", lab: "grip_use", d: 0, mul: 100, unit: "%", st: (v) => (v > 1.0 ? "bad" : v > 0.85 ? "warn" : "ok") },
-  { k: "lat_g", lab: "lateral_g", d: 2, unit: "g", st: (v) => (Math.abs(v) > 0.9 ? "warn" : "neutral") },
-  { k: "steer_deg", lab: "road_wheel_deg", d: 1, unit: "°", st: () => "neutral" },
+  { k: "lat_g", lab: "lateral_g", d: 2, abs: true, unit: "g", st: (v) => (v > 0.9 ? "warn" : "neutral") },
+  { k: "path_err", lab: "path_error_cm", d: 0, mul: 100, unit: "cm", st: (v) => (v > 0.5 ? "bad" : v > 0.25 ? "warn" : "ok") },
   { k: "app_throttle", lab: "throttle_pct", d: 0, mul: 100, unit: "%", st: (v) => (v > 0.05 ? "ok" : "neutral") },
   { k: "app_brake", lab: "brake_pct", d: 0, mul: 100, unit: "%", st: (v) => (v > 0.6 ? "bad" : v > 0.05 ? "warn" : "neutral") },
-  { k: "path_err", lab: "path_error_cm", d: 0, mul: 100, unit: "cm", st: (v) => (v > 0.5 ? "bad" : v > 0.25 ? "warn" : "ok") },
-  { k: "rear_slip_deg", lab: "rear_slip_deg", d: 1, abs: true, unit: "°", st: (v) => (Math.abs(v) > 6 ? "bad" : Math.abs(v) > 3.5 ? "warn" : "ok") },
-  { k: "p_batt_kw", lab: "battery_power_kw", d: 0, unit: "kW", st: (v) => (v < -1 ? "ok" : "neutral") },
-  { k: "e_net_wh", lab: "energy_net_wh", d: 0, unit: "Wh", st: () => "neutral" },
-  { k: "compute_ms", lab: "step_compute_ms", d: 2, unit: "ms", st: (v) => (v > 25 ? "bad" : v > 5 ? "warn" : "ok") },
+  { k: "e_net_wh", lab: "energy_used_wh", d: 0, unit: "Wh", st: () => "neutral" },
   { k: "_hits", lab: "cone_hits", d: 0, st: (v) => (v > 0 ? "bad" : "ok") },
 ];
 $("tiles").innerHTML = TILES.map((t, i) => `<div class="tile" id="tile${i}"><div class="lab">${t.lab}</div><div class="val"><span class="vv"><span class="v">—</span>${t.unit ? `<span class="unit">${t.unit}</span>` : ""}</span></div><div class="ghost"></div></div>`).join("");
@@ -413,13 +409,9 @@ function drawTiles() {
 const LANES = [
   { title: "speed (kph)", series: [{ k: "speed_kph", c: "cyan", n: "speed" }, { k: "target_speed", mul: 3.6, c: "orange", n: "target", dash: [4, 3] }] },
   { title: "pedals (%)", series: [{ k: "app_throttle", mul: 100, c: "green", n: "throttle" }, { k: "app_brake", mul: 100, c: "red", n: "brake" }], range: [0, 100] },
-  { title: "steering (deg)", series: [{ k: "steer_deg", c: "cyan", n: "road wheel" }, { k: "cmd_steer", mul: 35, c: "purple", n: "command", dash: [3, 3] }] },
+  { title: "steering (deg)", series: [{ k: "steer_deg", c: "cyan", n: "road wheel" }] },
   { title: "grip use (%)", series: [{ k: "grip_use", mul: 100, c: "yellow", n: "grip use" }], ref: [100, "limit"], range: [0, 120] },
-  { title: "rear slip (deg)", series: [{ k: "rear_slip_deg", c: "orange", n: "rear slip" }], ref: [6, "score limit"], sym: true },
-  { title: "path error (m)", series: [{ k: "path_err", c: "cyan", n: "vs committed plan" }, { k: "boundary_margin", c: "blue", n: "boundary margin" }] },
-  { title: "battery power (kW)", series: [{ k: "p_batt_kw", c: "purple", n: "power (− = regen)" }] },
-  { title: "energy (Wh)", series: [{ k: "e_net_wh", c: "green", n: "net" }, { k: "e_regen_wh", c: "blue", n: "regen", dash: [4, 3] }] },
-  { title: "compute (ms)", series: [{ k: "compute_ms", c: "cyan", n: "step wall" }], ref: [5, "10% of deadline"] },
+  { title: "path error (m)", series: [{ k: "path_err", c: "cyan", n: "vs committed plan" }], range: [0, 0.5] },
 ];
 const ts = $("ts");
 let tsLayout = null, zoomDrag = null;
@@ -520,12 +512,29 @@ ts.addEventListener("mouseup", (e) => {
 ts.addEventListener("dblclick", () => { S.zoom = null; S.dirty = true; });
 
 // ---------------------------------------------------------------- channel table
+// the channels that explain the score; "show all" lists every raw channel too
+const KEY_CH = [
+  ["speed_kph", "vehicle_speed", 1, "kph"], ["target_speed", "target_speed", 3.6, "kph"], ["app_throttle", "throttle", 100, "%"],
+  ["app_brake", "brake", 100, "%"], ["steer_deg", "road_wheel_angle", 1, "deg"], ["lat_g", "lateral_accel", 1, "g"],
+  ["lon_g", "longitudinal_accel", 1, "g"], ["grip_use", "grip_use", 100, "%"], ["rear_slip_deg", "rear_slip", 1, "deg"],
+  ["path_err", "path_error", 100, "cm"], ["boundary_margin", "boundary_margin", 1, "m"], ["progress", "distance", 1, "m"],
+  ["e_net_wh", "energy_used", 1, "Wh"], ["compute_ms", "step_compute", 1, "ms"],
+];
 function drawChan() {
-  const f = $("filter").value.trim().toLowerCase(), rows = [];
-  const add = (r, t, cls) => { for (const k of Object.keys(r.tel)) { if (k === "t" || (f && !k.includes(f))) continue; rows.push(`<tr class="${cls}"><td>${r.team}</td><td>${k}</td><td class="num">${fmt(val(r, k, t), 3)}</td></tr>`); } };
-  add(S.p, S.t, ""); if (S.g) add(S.g, gT(S.t), "gh");
+  const f = $("filter").value.trim().toLowerCase(), all = $("allCh").checked, r = S.p, g = S.g;
+  const list = all ? Object.keys(r.tel).filter((k) => k !== "t").map((k) => [k, k, 1, ""]) : KEY_CH;
+  $("chanHead").innerHTML = `<tr><th>CHANNEL</th><th class="num" style="color:${C.cyan}">${r.team.toUpperCase()}</th>` +
+    (g ? `<th class="num" style="color:${C.magenta}">${g.team.toUpperCase()}</th>` : "") + `<th>UNIT</th></tr>`;
+  const rows = [];
+  for (const [k, name, mul, unit] of list) {
+    if (!r.tel[k] || (f && !name.includes(f))) continue;
+    const d = unit === "%" || unit === "cm" ? 0 : 2;
+    rows.push(`<tr><td>${name}</td><td class="num">${fmt(val(r, k, S.t) * mul, d)}</td>` +
+      (g ? `<td class="num" style="color:${C.magenta}">${fmt(val(g, k, gT(S.t)) * mul, d)}</td>` : "") + `<td class="muted">${unit}</td></tr>`);
+  }
   $("chanBody").innerHTML = rows.join("");
 }
+$("allCh").addEventListener("change", () => (S.dirty = true));
 $("filter").addEventListener("input", () => (S.dirty = true));
 
 // ---------------------------------------------------------------- bottom views

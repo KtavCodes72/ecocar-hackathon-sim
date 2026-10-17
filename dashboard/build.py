@@ -39,10 +39,16 @@ RHO = 1.2
 ETA_MOTOR = 0.90      # battery -> wheel
 ETA_REGEN = 0.65      # wheel -> battery, share of braking energy recoverable
 
-# telemetry channels shipped to the dashboard (others are dropped to keep the file small)
+# telemetry channels read from the run (inputs to the derived channels below)
 CHANNELS = ["t", "x", "y", "yaw", "vx", "vy", "speed", "yaw_rate", "ax", "ay", "steer_angle", "progress", "lateral",
             "boundary_margin", "path_err", "off_course", "cmd_steer", "cmd_throttle", "cmd_brake", "app_steer",
             "app_throttle", "app_brake", "compute_ms", "cpu_ms", "target_speed"]
+
+
+# channels shipped to the dashboard: what it displays, plus a few raw ones for "show all"
+SHIP = ["t", "x", "y", "yaw", "speed_kph", "target_speed", "app_throttle", "app_brake", "steer_deg", "lat_g", "lon_g",
+        "grip_use", "rear_slip_deg", "path_err", "boundary_margin", "progress", "e_net_wh", "compute_ms",
+        "cmd_steer", "yaw_rate", "p_batt_kw"]
 
 
 def _f(v):
@@ -104,7 +110,7 @@ def load_run(d: Path, bike: dict) -> dict:
     summary = json.loads((d / "summary.json").read_text())
     events = json.loads((d / "events.json").read_text())
     rows = list(csv.DictReader(open(d / "telemetry.csv")))[::2]      # 40 Hz physics log -> 20 Hz for display
-    cols = [c for c in CHANNELS if c in rows[0]] + [c for c in rows[0] if c.startswith("dbg_")]
+    cols = [c for c in CHANNELS if c in rows[0]]
     tel = {c: np.array([_f(r[c]) for r in rows]) for c in cols}
     veh = summary["vehicle"]
     tel["grip_use"] = np.hypot(tel["ax"], tel["ay"]) / (float(veh["mu"]) * G)
@@ -124,7 +130,7 @@ def load_run(d: Path, bike: dict) -> dict:
         "energy": {"net_wh": round(float(tel["e_net_wh"][-1]), 1), "drive_wh": round(float(tel["e_drive_wh"][-1]), 1),
                    "regen_wh": round(float(tel["e_regen_wh"][-1]), 1), "wh_per_km": round(float(tel["e_net_wh"][-1]) / dist_km, 1)},
         "track": track_geometry(T.load(find_track(summary))),
-        "tel": {k: _round(v, 4 if k in ("x", "y", "yaw") else 3) for k, v in tel.items()},
+        "tel": {k: _round(tel[k], 4 if k in ("x", "y", "yaw") else 3) for k in SHIP if k in tel},
     }
 
 
