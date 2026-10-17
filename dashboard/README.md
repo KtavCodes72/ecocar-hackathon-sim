@@ -4,8 +4,16 @@ A Nominal-style control panel that replays sim runs: course map with the car and
 trail, a ghost car (e.g. the baseline) on the same map, live value tiles, synchronised time-series
 lanes, a channel table, events, score breakdown, estimated energy, and a leaderboard.
 
+`data.js` is committed: it holds the final submission (`kyle_and_braden`) and the baseline on all
+22 courses (public, mock and benchmark), so a fresh clone can open the dashboard straight away.
+Rebuild it after changing the controller:
+
 ```bash
-# run apex_planner + the baseline on the public courses and build the data (about 20 s)
+# the submission vs the baseline on every course (about 40 s)
+.venv/bin/python dashboard/build.py --fresh -c submission/kyle_and_braden.py:kyle_and_braden \
+    -c controllers/baseline_pure_pursuit.py:baseline -t "tracks/*.yaml" -t "tracks/mock/*.yaml" -t "tracks/bench/*.yaml"
+
+# run apex_planner + the baseline on the public courses only (about 20 s)
 .venv/bin/python dashboard/build.py --fresh
 
 # more courses / other controllers
