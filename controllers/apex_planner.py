@@ -10,13 +10,18 @@ Each step (road model only, no map):
      previous plan so consecutive plans agree (the path-deviation score compares against a
      0.5 s old plan).
   3. Speed: friction-ellipse forward/backward pass over the planned path's curvature; the end
-     of the preview is treated as a possible tight unseen corner, and cornering is gentler
-     where the corridor leaves no room to recover.
-  4. Tracking: curvature feedforward + lateral/heading feedback on the planned path, evaluated
-     at the pose predicted after actuator lag. Each plan is anchored to the previous one, so
-     drift shows up as tracking error. Steering is capped at the grip limit and slew-limited
-     below the actuator limit. Longitudinal: profile acceleration feedforward + PI, a combined
-     grip budget for braking, and traction control.
+     of the preview is treated as a possible tight unseen corner, cornering is gentler where
+     the corridor leaves no room to recover, and no corner is planned faster than the
+     grip-capped steering can hold given the car's understeer.
+  4. Understeer: learned online (separately on and off the throttle) from measured vs.
+     steering-predicted lateral acceleration; used by the speed plan and the feedforward.
+  5. Tracking: understeer-aware curvature feedforward + lateral/heading feedback on the planned
+     path, evaluated at the pose predicted after actuator lag. Each plan is anchored to the
+     previous one, so drift shows up as tracking error. Steering is capped at the grip limit
+     and slew-limited below the actuator limit.
+  6. Pedals: profile acceleration feedforward + PI, a combined grip budget for braking,
+     traction control, and stability control (throttle fades out, then a gentle brake, as the
+     steering runs out of grip).
 
 Any exception inside a step is caught and answered with a safe command (hold the steering,
 brake gently), so a numerical surprise can never count as a controller error.
@@ -53,7 +58,7 @@ DEFAULTS = {
     "thr_pow": 2.0,                                   # throttle cap = (spare grip)^thr_pow while cornering
     "comb_frac": 0.85,                                # braking keeps combined accel within this share of mu*g
     "tc_slip_deg": 3.0, "tc_band_deg": 2.5,           # traction control fade-in
-    "us_k0": 0.0006, "us_rate": 0.02, "us_frac": 0.85,  # understeer: initial gradient K (ay = v^2 tan(d)/L / (1 + K v^2)),
+    "us_k0": 0.0006, "us_rate": 0.02, "us_frac": 0.85, "us_v_min": 15.0,  # understeer: initial gradient K (ay = v^2 tan(d)/L / (1 + K v^2)),
                                                       # learning rate, and share of capped-steering grip the plan may use
     "sc_start": 0.70, "sc_brake": 0.3,                # stability control: steering-saturation share where the throttle
                                                       # starts fading out (gone at 1.0), and brake added beyond it
@@ -241,7 +246,11 @@ class ApexPlanner(Controller):
         th_err = (th - math.atan2(seg[1], seg[0]) + math.pi) % (2 * math.pi) - math.pi   # + = pointing left of it
         k_ff = float(np.interp(s[j1] + u * L + v * p["ff_ahead"], s, k))
         ell = max(p["ell_min"], p["ell_gain"] * v)
-        delta = math.atan(vp.wheelbase * (k_ff - e / (ell * ell) - 2.0 * p["zeta"] * th_err / ell))
+        # feedforward includes the learned understeer for the current throttle state: the car
+        # needs (1 + K v^2) times the neutral steering for a given curvature
+        w = min(max((obs.throttle - 0.05) / 0.25, 0.0), 1.0)
+        us = 1.0 + ((1.0 - w) * self.us_k_off + w * self.us_k_on) * v * v
+        delta = math.atan(vp.wheelbase * (k_ff * us - e / (ell * ell) - 2.0 * p["zeta"] * th_err / ell))
         # never command more steering than the tyres can use at this speed (the realism score
         # flags commands needing >110% of grip, and they only scrub speed anyway)
         self.steer_sat = 0.0
@@ -273,7 +282,7 @@ class ApexPlanner(Controller):
         if sat > p["sc_start"] and a_raw > 0.0:
             a_raw *= max(0.0, (1.0 - sat) / (1.0 - p["sc_start"]))
         if sat > 1.0 and p["sc_brake"] > 0.0:
-            a_raw = min(a_raw, -p["sc_brake"] * min(sat - 1.0, 1.0) * vp.max_decel)
+            a_raw = max(min(a_raw, -p["sc_brake"] * min(sat - 1.0, 1.0) * vp.max_decel), -dec_max)
         self.a_cmd += p["a_smooth"] * (a_raw - self.a_cmd)
         if self.a_cmd < 0.0:
             return 0.0, min(-self.a_cmd / vp.max_decel, 1.0), v_tgt
@@ -290,9 +299,11 @@ class ApexPlanner(Controller):
         vs. what the applied road-wheel angle would give a neutral car: ay = ay_kin / (1 + K v^2).
         The car (and CARLA vs the bicycle model) loses steering authority with speed; the speed
         plan uses K so it never asks for more cornering than the grip-capped steering delivers."""
+        # only above us_v_min: in slow, tight corners large steering angles and tyre geometry make a
+        # neutral car look like it understeers, which would make the feedforward over-steer
         vp = self.vehicle
         delta = obs.steer * vp.max_steer
-        if v < 8.0 or abs(delta) < 0.01 or abs(obs.ay) < 1.5:
+        if v < self.p["us_v_min"] or abs(delta) < 0.01 or abs(obs.ay) < 1.5:
             return
         ay_kin = v * v * math.tan(delta) / vp.wheelbase
         ratio = obs.ay / ay_kin
