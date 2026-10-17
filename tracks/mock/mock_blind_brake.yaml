@@ -1,0 +1,25 @@
+# Hard mock 2: a 150 m straight straight into a 7.5 m hairpin, then a decreasing-radius right
+# (40 -> 20 -> 10 m) and a quick chicane. The hairpin is tighter than the planner's assumed unseen
+# corner radius, so at top speed it appears inside the braking distance.
+name: mock_blind_brake
+closed: false
+width: 5.5
+cone_spacing: 5.0
+start_offset: 8.0
+finish_runoff: 40.0
+origin: [0.0, 0.0, 0.0]
+segments:
+- {type: straight, length: 30}
+- {type: straight, length: 150}
+- {type: arc, radius: 7.5, angle: 180, width: 6.5}
+- {type: straight, length: 40}
+- {type: arc, radius: 40, angle: -30}
+- {type: arc, radius: 20, angle: -45}
+- {type: arc, radius: 10, angle: -90, width: 6.0}
+- {type: straight, length: 15}
+- {type: arc, radius: 12, angle: 60}
+- {type: arc, radius: 12, angle: -60}
+- {type: straight, length: 80}
+- {type: arc, radius: 15, angle: 120}
+- {type: straight, length: 50}
+obstacles: []

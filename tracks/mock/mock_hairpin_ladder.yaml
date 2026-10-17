@@ -1,0 +1,23 @@
+# Hard mock 1: three alternating 9 m hairpins joined by short, narrow (4.5 m) straights, then a fast exit.
+# Tests: tight-radius tracking, steering-rate limits on direction reversal, braking/traction out of hairpins.
+name: mock_hairpin_ladder
+closed: false
+width: 5.5
+cone_spacing: 5.0
+start_offset: 8.0
+finish_runoff: 40.0
+origin: [0.0, 0.0, 0.0]
+segments:
+- {type: straight, length: 30}
+- {type: straight, length: 40}
+- {type: arc, radius: 9, angle: -180, width: 6.5}
+- {type: straight, length: 25, width: 4.5}
+- {type: arc, radius: 9, angle: 180, width: 6.5}
+- {type: straight, length: 20, width: 4.5}
+- {type: arc, radius: 9, angle: -180, width: 6.5}
+- {type: straight, length: 15}
+- {type: arc, radius: 12, angle: 90}
+- {type: straight, length: 60}
+- {type: arc, radius: 30, angle: -45}
+- {type: straight, length: 50}
+obstacles: []

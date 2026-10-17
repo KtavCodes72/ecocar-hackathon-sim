@@ -1,0 +1,30 @@
+# Hard mock 3: obstacles where they hurt - on the inside apex of a corner, on the outside of a corner
+# exit, alternating inside a tight slalom, and one in the middle of the road that forces a side choice.
+name: mock_obstacle_apex
+closed: false
+width: 5.5
+cone_spacing: 5.0
+start_offset: 8.0
+finish_runoff: 40.0
+origin: [0.0, 0.0, 0.0]
+segments:
+- {type: straight, length: 30}
+- {type: straight, length: 30}
+- {type: arc, radius: 20, angle: 90}
+- {type: straight, length: 30}
+- {type: arc, radius: 15, angle: -90}
+- {type: straight, length: 25}
+- {type: slalom, cycles: 2, wavelength: 20.0, swing: 2.2, first: left}
+- {type: straight, length: 30}
+- {type: arc, radius: 25, angle: 180, width: 6.5}
+- {type: straight, length: 40}
+- {type: arc, radius: 18, angle: -60}
+- {type: straight, length: 50}
+obstacles:
+- {s: 75.7, offset: 1.9, width: 1.3}
+- {s: 141.4, offset: 1.8, width: 1.4}
+- {s: 180.0, offset: -1.9, width: 1.2}
+- {s: 190.0, offset: 1.9, width: 1.2}
+- {s: 200.0, offset: -1.9, width: 1.2}
+- {s: 279.2, offset: 0.0, width: 1.2}
+- {s: 364.2, offset: -1.6, width: 1.4}

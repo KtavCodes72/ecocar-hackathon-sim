@@ -1,0 +1,28 @@
+# Hard mock 4: a 4.3 m corridor (car is 2.16 m wide) through fast sweepers, tight esses and a chicane.
+# Tests: over-conservative safety margins and precise tracking with almost no room for a racing line.
+name: mock_narrow_esses
+closed: false
+width: 4.3
+cone_spacing: 5.0
+start_offset: 8.0
+finish_runoff: 40.0
+origin: [0.0, 0.0, 0.0]
+segments:
+- {type: straight, length: 30}
+- {type: straight, length: 40}
+- {type: arc, radius: 50, angle: 25}
+- {type: arc, radius: 50, angle: -50}
+- {type: arc, radius: 50, angle: 25}
+- {type: straight, length: 30}
+- {type: arc, radius: 15, angle: 70}
+- {type: arc, radius: 15, angle: -70}
+- {type: arc, radius: 15, angle: 70}
+- {type: arc, radius: 15, angle: -70}
+- {type: straight, length: 40}
+- {type: arc, radius: 10, angle: -90, width: 5.5}
+- {type: straight, length: 30}
+- {type: arc, radius: 12, angle: 50}
+- {type: arc, radius: 12, angle: -100}
+- {type: arc, radius: 12, angle: 50}
+- {type: straight, length: 60}
+obstacles: []
