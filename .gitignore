@@ -12,3 +12,4 @@ tracks/*.png
 teams
 # generated telemetry dashboard data (rebuild with: python dashboard/build.py --fresh)
 dashboard/data.js
+dashboard/ecocar_dashboard_standalone.html
