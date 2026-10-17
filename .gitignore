@@ -10,3 +10,5 @@ tracks/private
 tracks/*.png
 # team submissions (judges score them from here)
 teams
+# generated telemetry dashboard data (rebuild with: python dashboard/build.py --fresh)
+dashboard/data.js

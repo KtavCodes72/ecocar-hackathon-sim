@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 20 640 590">
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- top hook and swoosh -->
+    <path d="M372 46 C 336 66 338 112 392 114 C 470 116 560 84 630 40" stroke-width="34"/>
+    <!-- left leg: sweeps down to the bottom-left curl -->
+    <path d="M584 92 C 480 232 340 470 210 556 C 156 592 84 566 100 448" stroke-width="46"/>
+    <!-- right leg with the foot flick -->
+    <path d="M606 66 C 566 226 538 396 546 534 C 550 578 588 572 616 522" stroke-width="48"/>
+    <!-- crossbar with its left loop -->
+    <path d="M336 296 C 292 296 286 346 334 350 C 424 360 522 330 594 382" stroke-width="30"/>
+  </g>
+</svg>
