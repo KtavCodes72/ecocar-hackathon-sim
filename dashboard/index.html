@@ -10,16 +10,18 @@
   --text: #d4dade; --dim: #7c868d; --faint: #4a5359;
   --cyan: #19e3ff; --orange: #ff9a1f; --blue: #3b82f6; --purple: #a855f7; --green: #22c55e;
   --yellow: #facc15; --red: #ef4444; --magenta: #f472b6;
+  --crimson: #9e1b32; --crimson-hi: #c8102e; --crimson-dim: #3b0f19;
   --ok: #10241a; --warn: #2a2610; --bad: #2c1313; --neutral: #15191c;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 12px/1.4 var(--mono); }
 button, select, input { font: inherit; color: inherit; }
-.app { display: grid; grid-template-columns: 48px 1fr; grid-template-rows: 46px 1fr; height: 100vh; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100vh; }
 
 /* ---- top bar ---- */
-.top { grid-column: 1 / 3; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 9px 14px; min-width: 0; border-bottom: 1px solid var(--crimson-dim);
+  background: linear-gradient(180deg, #0f0b0c, var(--bg)); box-shadow: inset 0 -1px 0 rgba(158,27,50,.35); }
 .logo { display: flex; align-items: center; gap: 6px; padding-right: 6px; }
 .script-a { font-family: "Snell Roundhand", "Apple Chancery", "Brush Script MT", "Lucida Calligraphy", cursive; font-weight: 900;
   font-size: 30px; line-height: 1; color: #9e1b32; text-shadow: 0 0 1px #c8102e, 0 0 10px rgba(158,27,50,.35); padding: 0 4px; }
@@ -28,6 +30,7 @@ button, select, input { font: inherit; color: inherit; }
 .crumb { color: var(--faint); }
 .sel { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 8px; height: 28px; }
 .sel:hover { border-color: #3a4449; }
+.sel:focus-visible, .btn:focus-visible, input:focus-visible { outline: 1px solid var(--crimson-hi); outline-offset: 1px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 4px; border: 1px solid var(--line-2); height: 28px; letter-spacing: .04em; }
 .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .badge.live { color: var(--green); border-color: #1d4d31; background: #0d1d14; }
@@ -35,31 +38,28 @@ button, select, input { font: inherit; color: inherit; }
 @keyframes pulse { 50% { opacity: .35; } }
 .btn { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px; height: 28px; min-width: 28px; padding: 0 8px; cursor: pointer; }
 .btn:hover { border-color: #3a4449; background: #192024; }
-.btn.on { color: var(--cyan); border-color: #12505a; }
-.btn.primary { background: #e8eef1; color: #0a0c0d; border-color: #e8eef1; }
-.scrub { flex: 1; min-width: 140px; accent-color: var(--cyan); }
+.btn.on { color: #fff; background: var(--crimson-dim); border-color: var(--crimson); }
+.btn.primary { background: var(--crimson); color: #fff; border-color: var(--crimson-hi); }
+.btn.primary:hover { background: var(--crimson-hi); border-color: var(--crimson-hi); }
+.scrub { flex: 1; min-width: 140px; accent-color: var(--crimson-hi); }
+.help { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--dim); cursor: help; }
+.help:hover, .help:focus { color: #fff; border-color: var(--crimson); }
+.help-pop { display: none; position: absolute; right: 0; top: 32px; width: 430px; padding: 10px 12px; background: #111416; border: 1px solid var(--line-2);
+  border-top: 2px solid var(--crimson); border-radius: 6px; color: var(--text); line-height: 1.7; z-index: 60; white-space: normal; }
+.help:hover .help-pop, .help:focus .help-pop { display: block; }
 .clock { min-width: 128px; text-align: right; color: var(--text); }
 .spacer { flex: 1; }
 
-/* ---- rail ---- */
-.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 10px; background: var(--bg); }
-.rail .ri { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: var(--dim); cursor: default; }
-.rail .ri.on { color: var(--cyan); background: #0f2226; }
-.rail svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.6; }
-
 /* ---- workspace ---- */
-.ws { overflow: auto; padding: 0; display: flex; flex-direction: column; }
-.tabs { display: flex; align-items: stretch; height: 36px; border-bottom: 1px solid var(--line); padding-left: 8px; }
-.tab { padding: 0 14px; display: flex; align-items: center; color: var(--dim); border-bottom: 2px solid transparent; cursor: pointer; }
-.tab.on { color: var(--text); border-bottom-color: var(--text); background: var(--panel); }
+.ws { overflow: auto; padding: 0; display: flex; flex-direction: column; min-width: 0; }
 .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; padding: 8px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.panel.max { position: fixed; inset: 54px 8px 8px 56px; z-index: 20; }
+.panel.max { position: fixed; inset: 8px; z-index: 20; box-shadow: 0 0 0 100vmax rgba(5,6,7,.7); }
 .ph { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid var(--line); color: var(--text); }
-.ph .grip { color: var(--faint); letter-spacing: -2px; }
-.ph .title { flex: 1; }
+.ph .title { flex: 1; display: flex; align-items: center; }
+.ph .title::before { content: ""; width: 3px; height: 12px; border-radius: 1px; background: var(--crimson-hi); margin-right: 9px; }
 .ph .ic { color: var(--dim); cursor: pointer; padding: 2px 4px; border-radius: 3px; }
-.ph .ic:hover { color: var(--text); background: #1a2023; }
+.ph .ic:hover { color: #fff; background: var(--crimson-dim); }
 .pb { flex: 1; position: relative; min-height: 0; }
 canvas { display: block; width: 100%; height: 100%; }
 .geo { height: 430px; }
@@ -103,17 +103,19 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 th.num { text-align: right; }
 tr.gh td { color: var(--magenta); }
 tr.click { cursor: pointer; } tr.click:hover td { background: #151b1e; }
-tr.cur td { background: #10262b; }
+tr.cur td { background: #24101500; background: rgba(158,27,50,.16); }
 
 /* ---- bottom ---- */
 .btabs { display: flex; gap: 2px; height: 36px; border-bottom: 1px solid var(--line); padding: 0 6px; }
 .btab { padding: 0 12px; display: flex; align-items: center; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; }
-.btab.on { color: var(--text); border-bottom-color: var(--text); }
+.btab.on { color: #fff; border-bottom-color: var(--crimson-hi); }
+.btab:hover { color: var(--text); }
 .bview { position: absolute; inset: 0; overflow: auto; padding: 12px; display: none; }
 .bview.on { display: block; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
 .card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--panel-2); }
 .card h4 { margin: 0 0 8px; font-weight: 500; color: var(--dim); }
+.card { border-top: 2px solid var(--crimson-dim); }
 .big { font-size: 34px; font-weight: 300; }
 .bar-row { display: grid; grid-template-columns: 120px 1fr 52px; gap: 8px; align-items: center; margin: 6px 0; }
 .bar-bg { height: 10px; background: #1b2124; border-radius: 2px; position: relative; overflow: hidden; }
@@ -152,20 +154,13 @@ tr.cur td { background: #10262b; }
     </select>
     <input id="scrub" class="scrub" type="range" min="0" max="1000" value="0" step="1">
     <span id="clock" class="clock">—</span>
-  </div>
-
-  <div class="rail">
-    <div class="ri on" title="Workbook"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/></svg></div>
-    <div class="ri" title="Runs"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg></div>
-    <div class="ri" title="Signals"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div>
-    <div class="ri" title="Controller"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></div>
+    <span class="help" tabindex="0">?<span class="help-pop">Space play / pause · ← → step 0.5 s (Shift 5 s) · Home restart · F follow car<br>Charts: hover to read, click to jump, drag to zoom, double-click to reset<br>Map: scroll to zoom, drag to pan · ⤢ maximize a panel, Esc to restore</span></span>
   </div>
 
   <div class="ws">
-    <div class="tabs"><div class="tab on">Overview</div><div class="tab" id="tabHint" style="color:var(--faint)">Space play · ←/→ step · drag chart to zoom · dbl-click reset</div></div>
     <div class="grid">
       <section class="panel geo" id="pGeo">
-        <div class="ph"><span class="grip">⋮⋮</span><span class="title">Geo panel</span><span class="ic" data-max="pGeo" title="Maximize">⤢</span></div>
+        <div class="ph"><span class="title">Geo panel</span><span class="ic" data-max="pGeo" title="Maximize">⤢</span></div>
         <div class="pb">
           <canvas id="geo"></canvas>
           <div class="geo-info" id="geoInfo"></div>
@@ -176,17 +171,17 @@ tr.cur td { background: #10262b; }
       </section>
 
       <section class="panel tiles-p" id="pTiles">
-        <div class="ph"><span class="grip">⋮⋮</span><span class="title">Value table</span><span class="muted" id="tilesSub"></span><span class="ic" data-max="pTiles" title="Maximize">⤢</span></div>
+        <div class="ph"><span class="title">Value table</span><span class="muted" id="tilesSub"></span><span class="ic" data-max="pTiles" title="Maximize">⤢</span></div>
         <div class="pb"><div class="tiles" id="tiles"></div></div>
       </section>
 
       <section class="panel ts" id="pTs">
-        <div class="ph"><span class="grip">⋮⋮</span><span class="title">Time series chart</span><span class="muted" id="tsSub"></span><span class="ic" data-max="pTs" title="Maximize">⤢</span></div>
+        <div class="ph"><span class="title">Time series chart</span><span class="muted" id="tsSub"></span><span class="ic" data-max="pTs" title="Maximize">⤢</span></div>
         <div class="pb"><canvas id="ts"></canvas></div>
       </section>
 
       <section class="panel chan" id="pChan">
-        <div class="ph"><span class="grip">⋮⋮</span><span class="title">Channel table</span><span class="ic" data-max="pChan" title="Maximize">⤢</span></div>
+        <div class="ph"><span class="title">Channel table</span><span class="ic" data-max="pChan" title="Maximize">⤢</span></div>
         <div class="ctool"><input id="filter" placeholder="Filter channels…"><label class="muted" style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="allCh"> show all</label></div>
         <div class="pb"><div class="ctab"><table><thead id="chanHead"></thead><tbody id="chanBody"></tbody></table></div></div>
       </section>
@@ -278,9 +273,13 @@ function geoFit() {
   for (const arr of [tr.left, tr.right]) for (let i = 0; i < arr.length; i += 2) {
     b[0] = Math.min(b[0], arr[i]); b[1] = Math.min(b[1], arr[i + 1]); b[2] = Math.max(b[2], arr[i]); b[3] = Math.max(b[3], arr[i + 1]);
   }
-  const r = geo.getBoundingClientRect(), pad = 36;
-  const sc = Math.min((r.width - 2 * pad) / (b[2] - b[0] || 1), (r.height - 2 * pad) / (b[3] - b[1] || 1));
-  S.view = { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, sc };
+  // fit the course into the area the overlays leave free: info box (top-left), colour bar
+  // (left), map buttons (right) and legend (bottom)
+  const r = geo.getBoundingClientRect();
+  const padT = $("geoInfo").offsetHeight + 22, padL = 64, padR = 58, padB = $("geoLegend").offsetHeight + 22;
+  const sc = Math.min((r.width - padL - padR) / (b[2] - b[0] || 1), (r.height - padT - padB) / (b[3] - b[1] || 1));
+  const cxPix = padL + (r.width - padL - padR) / 2, cyPix = padT + (r.height - padT - padB) / 2;
+  S.view = { cx: (b[0] + b[2]) / 2 - (cxPix - r.width / 2) / sc, cy: (b[1] + b[3]) / 2 + (cyPix - r.height / 2) / sc, sc };
 }
 function drawGeo() {
   const [g, W, H] = fitCanvas(geo); if (!S.view) geoFit();
@@ -406,12 +405,13 @@ function drawTiles() {
 }
 
 // ---------------------------------------------------------------- time series
+// series[0] is the lane's main signal: the only one drawn for the ghost run and shown in the readout
 const LANES = [
-  { title: "speed (kph)", series: [{ k: "speed_kph", c: "cyan", n: "speed" }, { k: "target_speed", mul: 3.6, c: "orange", n: "target", dash: [4, 3] }] },
-  { title: "pedals (%)", series: [{ k: "app_throttle", mul: 100, c: "green", n: "throttle" }, { k: "app_brake", mul: 100, c: "red", n: "brake" }], range: [0, 100] },
-  { title: "steering (deg)", series: [{ k: "steer_deg", c: "cyan", n: "road wheel" }] },
-  { title: "grip use (%)", series: [{ k: "grip_use", mul: 100, c: "yellow", n: "grip use" }], ref: [100, "limit"], range: [0, 120] },
-  { title: "path error (m)", series: [{ k: "path_err", c: "cyan", n: "vs committed plan" }], range: [0, 0.5] },
+  { title: "speed", unit: "kph", d: 1, range: [0, 0], series: [{ k: "speed_kph", c: "cyan", n: "speed" }, { k: "target_speed", mul: 3.6, c: "orange", n: "target", dash: [4, 3] }] },
+  { title: "pedals", unit: "%", d: 0, series: [{ k: "app_throttle", mul: 100, c: "green", n: "throttle" }, { k: "app_brake", mul: 100, c: "red", n: "brake" }], range: [0, 100] },
+  { title: "steering", unit: "deg", d: 1, series: [{ k: "steer_deg", c: "cyan", n: "road wheel" }], sym: true },
+  { title: "grip use", unit: "%", d: 0, series: [{ k: "grip_use", mul: 100, c: "yellow", n: "grip use" }], ref: 100, range: [0, 110] },
+  { title: "path error", unit: "m", d: 2, series: [{ k: "path_err", c: "cyan", n: "vs committed plan" }], range: [0, 0.5] },
 ];
 const ts = $("ts");
 let tsLayout = null, zoomDrag = null;
@@ -428,65 +428,83 @@ function niceTicks(lo, hi, n) {
 }
 function drawTs() {
   const [g, W, H] = fitCanvas(ts); g.clearRect(0, 0, W, H);
-  const padL = 58, padR = 12, padT = 6, axisH = 26, gap = 6;
+  // layout: each lane = header strip (title, legend, readout) + its own plot box, never overlapping
+  const padL = 56, padR = 14, padT = 4, axisH = 24, gap = 10, headH = 20, inset = 9;
   const [ta, tb] = tRange(), laneH = (H - padT - axisH - gap * (LANES.length - 1)) / LANES.length;
-  const X = (t) => padL + (t - ta) / (tb - ta) * (W - padL - padR);
+  const plotW = W - padL - padR, X = (t) => padL + (t - ta) / (tb - ta) * plotW;
   tsLayout = { padL, padR, ta, tb, W, X };
-  const runs = [[S.p, (t) => t, 1], ...(S.g ? [[S.g, gT, 0.55]] : [])];
-  g.font = `10.5px ${MONO}`;
+  const tCur = S.hover != null ? S.hover : S.t;
+  g.font = `11px ${MONO}`; g.lineJoin = "round";
   LANES.forEach((lane, li) => {
-    const y0 = padT + li * (laneH + gap), y1 = y0 + laneH;
-    // range from visible data
+    const top = padT + li * (laneH + gap), py0 = top + headH, py1 = top + laneH, ph = py1 - py0;
+    // ---- value range over the visible window
     let lo = Infinity, hi = -Infinity;
-    for (const [r, map] of runs) for (const s of lane.series) {
-      const a = r.tel[s.k]; if (!a) continue; const i0 = idx(r, map(ta)), i1 = idx(r, map(tb));
+    const scan = (r, map, s) => {
+      const a = r.tel[s.k]; if (!a) return; const i0 = idx(r, map(ta)), i1 = idx(r, map(tb));
       for (let i = i0; i <= i1; i++) { const v = a[i] * (s.mul || 1); if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
-    }
-    if (lane.ref) { lo = Math.min(lo, lane.sym ? -lane.ref[0] : lo); hi = Math.max(hi, lane.ref[0] * 1.05); }
+    };
+    lane.series.forEach((sr) => scan(S.p, (t) => t, sr)); if (S.g) scan(S.g, gT, lane.series[0]);
     if (lane.range) { lo = Math.min(lane.range[0], lo); hi = Math.max(lane.range[1], hi); }
-    if (lane.sym) { const m = Math.max(Math.abs(lo), Math.abs(hi)); lo = -m; hi = m; }
+    if (lane.ref != null) hi = Math.max(hi, lane.ref);
+    if (lane.sym) { const m = Math.max(Math.abs(lo), Math.abs(hi), 1); lo = -m; hi = m; }
     if (!Number.isFinite(lo)) { lo = 0; hi = 1; } if (hi - lo < 1e-6) { hi += 1; lo -= 1; }
-    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
-    const Y = (v) => y1 - (v - lo) / (hi - lo) * laneH;
-    g.fillStyle = "#0d1012"; g.fillRect(padL, y0, W - padL - padR, laneH);
-    g.strokeStyle = "#1a2023"; g.lineWidth = 1; g.fillStyle = C.faint; g.textAlign = "right"; g.textBaseline = "middle";
-    for (const v of niceTicks(lo, hi, Math.max(2, Math.floor(laneH / 26)))) {
-      const y = Math.round(Y(v)) + .5; g.beginPath(); g.moveTo(padL, y); g.lineTo(W - padR, y); g.stroke();
-      g.fillText(Math.abs(v) >= 1000 ? v.toFixed(0) : +v.toFixed(2), padL - 6, y);
+    const Y = (v) => py1 - inset - (v - lo) / (hi - lo) * (ph - 2 * inset);
+    // ---- header strip: title + legend on the left, live readout on the right
+    g.textBaseline = "middle"; const hy = top + headH / 2;
+    g.textAlign = "left"; let lx = padL;
+    g.fillStyle = C.text; g.fillText(lane.title, lx, hy); lx += g.measureText(lane.title).width + 6;
+    g.fillStyle = C.faint; g.fillText(`(${lane.unit})`, lx, hy); lx += g.measureText(`(${lane.unit})`).width + 14;
+    const chips = [...lane.series.map((sr) => [sr.n, C[sr.c], sr.dash]), ...(S.g ? [[`${S.g.team}`, C.magenta]] : [])];
+    const read = `${fmt(val(S.p, lane.series[0].k, tCur) * (lane.series[0].mul || 1), lane.d)}` +
+      (S.g ? `   ${fmt(val(S.g, lane.series[0].k, gT(tCur)) * (lane.series[0].mul || 1), lane.d)}` : "");
+    const readW = g.measureText(read).width, maxX = W - padR - readW - 16;
+    for (const [name, col, dash] of chips) {
+      const w = 16 + g.measureText(name).width; if (lx + w > maxX) break;
+      g.strokeStyle = col; g.lineWidth = 2; g.setLineDash(dash || []); g.beginPath(); g.moveTo(lx, hy); g.lineTo(lx + 11, hy); g.stroke(); g.setLineDash([]);
+      g.fillStyle = C.dim; g.fillText(name, lx + 15, hy); lx += w + 12;
     }
-    if (lane.ref) { g.strokeStyle = "rgba(239,68,68,.55)"; g.setLineDash([2, 3]); for (const rv of lane.sym ? [lane.ref[0], -lane.ref[0]] : [lane.ref[0]]) { const y = Y(rv); g.beginPath(); g.moveTo(padL, y); g.lineTo(W - padR, y); g.stroke(); } g.setLineDash([]); }
-    // series
-    g.save(); g.beginPath(); g.rect(padL, y0, W - padL - padR, laneH); g.clip();
-    for (const [r, map, alpha] of runs) for (const s of lane.series) {
-      const a = r.tel[s.k]; if (!a) continue; const tt = r.tel.t, i0 = Math.max(0, idx(r, map(ta)) - 1), i1 = Math.min(a.length - 1, idx(r, map(tb)) + 1);
-      g.strokeStyle = alpha < 1 ? C.magenta : C[s.c]; g.globalAlpha = alpha; g.lineWidth = alpha < 1 ? 1 : 1.3; g.setLineDash(s.dash || []);
-      g.beginPath(); let pen = false; const back = (t) => (alpha < 1 ? t - (map(0) - 0) : t);
-      const stride = Math.max(1, Math.floor((i1 - i0) / ((W - padL) * 1.5)));
+    g.textAlign = "right";
+    if (S.g) { const gs = fmt(val(S.g, lane.series[0].k, gT(tCur)) * (lane.series[0].mul || 1), lane.d); g.fillStyle = C.magenta; g.fillText(gs, W - padR, hy);
+      g.fillStyle = C.text; g.fillText(fmt(val(S.p, lane.series[0].k, tCur) * (lane.series[0].mul || 1), lane.d), W - padR - g.measureText(gs).width - 12, hy); }
+    else { g.fillStyle = C.text; g.fillText(read, W - padR, hy); }
+    // ---- plot box, grid and y labels (labels kept inside this lane's box)
+    g.fillStyle = "#0d1012"; g.fillRect(padL, py0, plotW, ph);
+    g.strokeStyle = "#1c2326"; g.strokeRect(padL + .5, py0 + .5, plotW - 1, ph - 1);
+    const nT = Math.max(3, Math.min(5, Math.floor(ph / 22)));
+    g.fillStyle = C.faint; g.textAlign = "right"; g.textBaseline = "middle";
+    for (const v of niceTicks(lo, hi, nT)) {
+      const y = Math.round(Y(v)) + .5; if (y < py0 + 5 || y > py1 - 5) continue;
+      g.strokeStyle = "#182024"; g.beginPath(); g.moveTo(padL + 1, y); g.lineTo(W - padR - 1, y); g.stroke();
+      g.fillText(Math.abs(v) >= 100 ? v.toFixed(0) : +v.toFixed(2), padL - 8, y);
+    }
+    if (lane.ref != null) { const y = Math.round(Y(lane.ref)) + .5; g.strokeStyle = "rgba(239,68,68,.6)"; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(padL, y); g.lineTo(W - padR, y); g.stroke(); g.setLineDash([]); }
+    // ---- series, clipped to the plot box; ghost first so the primary run draws on top
+    g.save(); g.beginPath(); g.rect(padL + 1, py0 + 1, plotW - 2, ph - 2); g.clip();
+    for (const e of S.p.hits) if (e.t >= ta && e.t <= tb) { g.fillStyle = "rgba(239,68,68,.25)"; g.fillRect(X(e.t) - 1, py0, 2, ph); }
+    const line = (r, map, sr, col, width, alpha) => {
+      const a = r.tel[sr.k]; if (!a) return; const tt = r.tel.t;
+      const i0 = Math.max(0, idx(r, map(ta)) - 1), i1 = Math.min(a.length - 1, idx(r, map(tb)) + 1);
+      const shift = map(0); const stride = Math.max(1, Math.floor((i1 - i0) / (plotW * 1.5)));
+      g.strokeStyle = col; g.lineWidth = width; g.globalAlpha = alpha; g.setLineDash(sr.dash || []); g.beginPath(); let pen = false;
       for (let i = i0; i <= i1; i += stride) {
-        const v = a[i] * (s.mul || 1); if (!Number.isFinite(v)) { pen = false; continue; }
-        const x = X(back(tt[i])), y = Y(v); if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; }
+        const v = a[i] * (sr.mul || 1); if (!Number.isFinite(v)) { pen = false; continue; }
+        const x = X(tt[i] - shift), y = Y(v); if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; }
       }
       g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-    }
-    // incidents
-    for (const e of S.p.hits) if (e.t >= ta && e.t <= tb) { g.fillStyle = "rgba(239,68,68,.22)"; g.fillRect(X(e.t) - 1, y0, 2, laneH); }
+    };
+    if (S.g) line(S.g, gT, { ...lane.series[0], dash: null }, C.magenta, 1.2, 0.7);
+    for (const sr of lane.series) line(S.p, (t) => t, sr, C[sr.c], 1.5, 1);
     g.restore();
-    // lane title + legend chips
-    g.textAlign = "left"; g.textBaseline = "top"; let lx = padL + 8;
-    g.fillStyle = C.dim; g.fillText(lane.title, lx, y0 + 5); lx += g.measureText(lane.title).width + 14;
-    for (const s of lane.series) { g.fillStyle = C[s.c]; g.fillRect(lx, y0 + 8, 10, 2); g.fillStyle = C.text; g.fillText(s.n, lx + 14, y0 + 5); lx += g.measureText(s.n).width + 28; }
-    if (S.g) { g.fillStyle = C.magenta; g.fillRect(lx, y0 + 8, 10, 2); g.fillText("ghost", lx + 14, y0 + 5); }
-    lane._y = [y0, y1, Y, lo, hi];
   });
-  // x axis
-  g.fillStyle = C.dim; g.textAlign = "center"; g.textBaseline = "top"; g.strokeStyle = C.line;
-  const yA = H - axisH + 6;
-  for (const t of niceTicks(ta, tb, Math.max(3, Math.floor((W - padL) / 90)))) { g.fillText(fmt(lapT(S.p, t), (tb - ta) < 20 ? 1 : 0) + " s", X(t), yA); }
-  // zoom selection
-  if (zoomDrag && zoomDrag.x1 != null) { g.fillStyle = "rgba(25,227,255,.10)"; g.fillRect(Math.min(zoomDrag.x0, zoomDrag.x1), padT, Math.abs(zoomDrag.x1 - zoomDrag.x0), H - padT - axisH); }
-  // cursor (current time) and hover crosshair
-  if (S.t >= ta && S.t <= tb) { const x = Math.round(X(S.t)) + .5; g.strokeStyle = C.cyan; g.lineWidth = 1; g.beginPath(); g.moveTo(x, padT); g.lineTo(x, H - axisH); g.stroke(); }
-  if (S.hover != null) { const x = Math.round(X(S.hover)) + .5; g.strokeStyle = "rgba(212,218,222,.35)"; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, H - axisH); g.stroke(); g.setLineDash([]); }
+  // ---- x axis (lap time) under the last lane
+  g.fillStyle = C.dim; g.textAlign = "center"; g.textBaseline = "top";
+  const ticks = niceTicks(lapT(S.p, ta), lapT(S.p, tb), Math.max(3, Math.floor(plotW / 90)));
+  for (const lt of ticks) { const x = X(lt + (S.p.start_t != null ? S.p.start_t : S.p.t0)); if (x < padL + 12 || x > W - padR - 12) continue; g.fillText(`${+lt.toFixed(1)} s`, x, H - axisH + 6); }
+  // ---- drag-zoom selection, current time, hover crosshair
+  const yTop = padT + headH, yBot = H - axisH;
+  if (zoomDrag && zoomDrag.x1 != null) { g.fillStyle = "rgba(25,227,255,.10)"; g.fillRect(Math.min(zoomDrag.x0, zoomDrag.x1), yTop, Math.abs(zoomDrag.x1 - zoomDrag.x0), yBot - yTop); }
+  if (S.t >= ta && S.t <= tb) { const x = Math.round(X(S.t)) + .5; g.strokeStyle = C.cyan; g.lineWidth = 1; g.beginPath(); g.moveTo(x, yTop); g.lineTo(x, yBot); g.stroke(); }
+  if (S.hover != null) { const x = Math.round(X(S.hover)) + .5; g.strokeStyle = "rgba(212,218,222,.35)"; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x, yTop); g.lineTo(x, yBot); g.stroke(); g.setLineDash([]); }
   $("tsSub").textContent = S.zoom ? "zoomed · dbl-click to reset" : S.win ? `last ${S.win} s` : "full run";
 }
 function tsTime(e) { const r = ts.getBoundingClientRect(), L = tsLayout; return L.ta + (e.clientX - r.left - L.padL) / (L.W - L.padL - L.padR) * (L.tb - L.ta); }
@@ -499,7 +517,7 @@ ts.addEventListener("mousemove", (e) => {
     const gh = S.g ? ` <span style="color:${C.magenta}">${fmt(val(S.g, s.k, gT(t)) * (s.mul || 1), 2)}</span>` : "";
     return `<div><span class="sw" style="background:${C[s.c]}"></span>${s.n}: <b>${fmt(v, 2)}</b>${gh}</div>`;
   };
-  const rows = LANES.map((l) => l.series.map(row).join("")).join("");
+  const rows = LANES.map((l) => row({ ...l.series[0], n: l.title, mul: l.series[0].mul })).join("");
   const tip = $("tip"); tip.innerHTML = `<div class="muted">t = ${fmt(lapT(S.p, t), 2)} s</div>${rows}`; tip.style.display = "block";
   const tw = tip.offsetWidth; tip.style.left = (e.clientX + 16 + tw > innerWidth ? e.clientX - tw - 16 : e.clientX + 16) + "px"; tip.style.top = Math.min(e.clientY + 12, innerHeight - tip.offsetHeight - 8) + "px";
 });
@@ -581,14 +599,15 @@ let scatterPts = [];
 function drawScatter() {
   const cv = $("scatter"); if (!cv) return; const [g, W, H] = fitCanvas(cv);
   const pts = D.runs.filter((q) => q.metrics.completion.finished).map((q) => ({ q, x: q.metrics.completion.time_s / q.metrics.completion.reference_time_s * 100, y: q.energy.wh_per_km }));
-  const pl = 54, pb = 30, pr = 12, pt = 12;
+  const pl = 56, pb = 40, pr = 16, pt = 30;   // pt reserves a strip for the legend
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-  const x0 = Math.min(...xs) - 3, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) * 0.9, y1 = Math.max(...ys) * 1.05;
+  const x0 = Math.min(...xs) - 4, x1 = Math.max(...xs) + 4, y0 = Math.min(...ys) * 0.9, y1 = Math.max(...ys) * 1.08;
   const X = (x) => pl + (x - x0) / (x1 - x0) * (W - pl - pr), Y = (y) => H - pb - (y - y0) / (y1 - y0) * (H - pb - pt);
   g.clearRect(0, 0, W, H); g.font = `10.5px ${MONO}`; g.strokeStyle = "#1a2023"; g.fillStyle = C.faint;
-  g.textAlign = "right"; g.textBaseline = "middle"; for (const v of niceTicks(y0, y1, 5)) { g.beginPath(); g.moveTo(pl, Y(v)); g.lineTo(W - pr, Y(v)); g.stroke(); g.fillText(v.toFixed(0), pl - 6, Y(v)); }
-  g.textAlign = "center"; g.textBaseline = "top"; for (const v of niceTicks(x0, x1, 6)) { g.beginPath(); g.moveTo(X(v), pt); g.lineTo(X(v), H - pb); g.stroke(); g.fillText(v.toFixed(0) + "%", X(v), H - pb + 6); }
-  g.fillStyle = C.dim; g.fillText("lap time vs reference", (pl + W) / 2, H - 14); g.save(); g.translate(12, H / 2); g.rotate(-Math.PI / 2); g.fillText("Wh/km", 0, 0); g.restore();
+  g.fillStyle = "#0d1012"; g.fillRect(pl, pt, W - pl - pr, H - pt - pb); g.fillStyle = C.faint;
+  g.textAlign = "right"; g.textBaseline = "middle"; for (const v of niceTicks(y0, y1, 5)) { const y = Y(v); if (y < pt + 6 || y > H - pb - 6) continue; g.beginPath(); g.moveTo(pl, y); g.lineTo(W - pr, y); g.stroke(); g.fillText(v.toFixed(0), pl - 8, y); }
+  g.textAlign = "center"; g.textBaseline = "top"; for (const v of niceTicks(x0, x1, Math.max(3, Math.floor((W - pl) / 80)))) { const x = X(v); if (x < pl + 10 || x > W - pr - 10) continue; g.beginPath(); g.moveTo(x, pt); g.lineTo(x, H - pb); g.stroke(); g.fillText(v.toFixed(0) + "%", x, H - pb + 6); }
+  g.fillStyle = C.dim; g.fillText("lap time vs reference", (pl + W - pr) / 2, H - 16); g.save(); g.translate(14, (pt + H - pb) / 2); g.rotate(-Math.PI / 2); g.textBaseline = "middle"; g.fillText("Wh/km", 0, 0); g.restore();
   const teams = [...new Set(D.runs.map((q) => q.team))], pal = [C.cyan, C.magenta, C.orange, C.green, C.yellow, C.blue];
   scatterPts = pts.map((p) => ({ ...p, px: X(p.x), py: Y(p.y) }));
   for (const p of scatterPts) {
@@ -596,8 +615,8 @@ function drawScatter() {
     g.fillStyle = col; g.globalAlpha = cur ? 1 : 0.55; g.beginPath(); g.arc(p.px, p.py, cur ? 6 : 4, 0, 7); g.fill();
     if (cur) { g.strokeStyle = "#fff"; g.lineWidth = 1.5; g.stroke(); }
   }
-  g.globalAlpha = 1; g.textAlign = "left"; g.textBaseline = "top"; let lx = pl + 8;
-  teams.forEach((tm, i) => { g.fillStyle = pal[i % pal.length]; g.fillRect(lx, pt + 4, 8, 8); g.fillStyle = C.text; g.fillText(tm, lx + 12, pt + 2); lx += g.measureText(tm).width + 30; });
+  g.globalAlpha = 1; g.textAlign = "left"; g.textBaseline = "middle"; let lx = pl;
+  teams.forEach((tm, i) => { g.fillStyle = pal[i % pal.length]; g.beginPath(); g.arc(lx + 4, pt / 2, 4, 0, 7); g.fill(); g.fillStyle = C.text; g.fillText(tm, lx + 13, pt / 2); lx += g.measureText(tm).width + 34; });
   cv.onmousemove = (e) => {
     const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     const hit = scatterPts.find((p) => Math.hypot(p.px - mx, p.py - my) < 7), tip = $("tip");
@@ -652,6 +671,7 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "ArrowLeft") setT(S.t - (e.shiftKey ? 5 : 0.5));
   else if (e.code === "Home") $("restart").click();
   else if (e.key === "f") $("follow").click();
+  else if (e.key === "Escape") { document.querySelectorAll(".panel.max").forEach((p) => p.classList.remove("max")); S.view = null; S.dirty = true; }
 });
 new ResizeObserver(() => { S.view = null; S.dirty = true; }).observe(document.body);
 
