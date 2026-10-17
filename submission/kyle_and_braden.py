@@ -22,8 +22,10 @@ Each step (road model only, no map):
      previous one, so drift shows up as tracking error. Steering is capped at the grip limit
      and slew-limited below the actuator limit.
   6. Pedals: profile acceleration feedforward + PI, a combined grip budget for braking,
-     traction control, and stability control (throttle fades out, then a gentle brake, as the
-     steering runs out of grip).
+     traction control, brake release when the rear slides, and stability control (throttle
+     fades out, then a gentle brake, as the steering runs out of grip).
+  7. Braking limit: learned online from rear slip under braking (CARLA's car steps out under
+     hard braking, the bicycle model does not); scales the planned and commanded deceleration.
 
 Any exception inside a step is caught and answered with a safe command (hold the steering,
 brake gently), so a numerical surprise can never count as a controller error.
@@ -54,12 +56,15 @@ DEFAULTS = {
     "narrow_frac": 0.7, "slack_ref": 2.5,             # cornering share where the hard corridor has no slack
     # lateral tracking
     "t_pred": 0.12, "ff_ahead": 0.05, "ell_gain": 0.30, "ell_min": 3.0, "zeta": 0.7,
-    "grip_cap": 1.08,                                 # max steer as a share of grip-limited steer
-    # longitudinal
+    "grip_cap": 1.08,                                 # max steer as a share of grip-limited steer    # longitudinal
     "kp": 0.6, "ki": 0.15, "a_smooth": 0.5,
     "thr_pow": 1.25,                                  # throttle cap = (spare grip)^thr_pow while cornering
     "comb_frac": 0.85,                                # braking keeps combined accel within this share of mu*g
     "tc_slip_deg": 3.0, "tc_band_deg": 2.5,           # traction control fade-in
+    "bc_slip_deg": 3.0, "bc_band_deg": 3.0,           # brake release: rear slip where the brake starts fading out
+    "bl_slip_deg": 3.0, "bl_ay_deg": 0.5,             # braking-limit learning: rear slip under braking beyond
+                                                      # bl_ay_deg per m/s^2 of lateral accel counts as unstable
+    "bl_drop": 0.03, "bl_rise": 0.002, "bl_min": 0.6, # share lost per unstable step / regained per clean step, floor
     "us_k0": 0.0006, "us_rate": 0.02, "us_frac": 0.85, "us_v_min": 15.0,  # understeer: initial gradient K (ay = v^2 tan(d)/L / (1 + K v^2)),
                                                       # learning rate, and share of capped-steering grip the plan may use
     "sc_start": 0.70, "sc_brake": 0.3,                # stability control: steering-saturation share where the throttle
@@ -77,6 +82,9 @@ class ApexPlanner(Controller):
         self.a_lat = p["lat_frac"] * vp.mu * G
         self.a_dec = p["lon_frac"] * vp.max_decel
         self.tc_slip, self.tc_band = math.radians(p["tc_slip_deg"]), math.radians(p["tc_band_deg"])
+        self.bc_slip, self.bc_band = math.radians(p["bc_slip_deg"]), math.radians(p["bc_band_deg"])
+        self.bl_slip = math.radians(p["bl_slip_deg"])
+        self.brake_scale = 1.0         # learned share of the published braking the car can use without the rear stepping out
         self.steer_step = 0.95 * vp.max_steer_rate * vp.control_dt
         self.prev_n = self.prev_s = self.prev_progress = None   # previous plan, for warm start / anchoring
         self.pass_side = {}            # obstacle key (rounded world position) -> +1 left / -1 right
@@ -252,8 +260,7 @@ class ApexPlanner(Controller):
         # needs (1 + K v^2) times the neutral steering for a given curvature
         w = min(max((obs.throttle - 0.05) / 0.25, 0.0), 1.0)
         us = 1.0 + ((1.0 - w) * self.us_k_off + w * self.us_k_on) * v * v
-        delta = math.atan(vp.wheelbase * (k_ff * us - e / (ell * ell) - 2.0 * p["zeta"] * th_err / ell))
-        # never command more steering than the tyres can use at this speed (the realism score
+        delta = math.atan(vp.wheelbase * (k_ff * us - e / (ell * ell) - 2.0 * p["zeta"] * th_err / ell))        # never command more steering than the tyres can use at this speed (the realism score
         # flags commands needing >110% of grip, and they only scrub speed anyway)
         self.steer_sat = 0.0
         if v > 3.0:
@@ -276,7 +283,8 @@ class ApexPlanner(Controller):
         a_raw = a_ff + p["kp"] * err + p["ki"] * self.i_err
         spare = math.sqrt(1.0 - min(abs(obs.ay) / (vp.mu * G), 0.95) ** 2)
         a_tot = p["comb_frac"] * vp.mu * G
-        dec_max = max(min(vp.max_decel, math.sqrt(max(a_tot ** 2 - obs.ay ** 2, 0.0))), 0.3 * vp.max_decel * spare)
+        dec_lim = self.brake_scale * vp.max_decel          # learned: hard braking can make the rear step out
+        dec_max = max(min(dec_lim, math.sqrt(max(a_tot ** 2 - obs.ay ** 2, 0.0))), 0.3 * dec_lim * spare)
         a_raw = min(max(a_raw, -dec_max), vp.max_accel * max(spare ** p["thr_pow"], 0.15))
         # stability control: when the steering is running out of grip (driven front wheels push
         # wide under power), stop accelerating so the tyres can turn; past the limit, brake gently
@@ -286,11 +294,16 @@ class ApexPlanner(Controller):
         if sat > 1.0 and p["sc_brake"] > 0.0:
             a_raw = max(min(a_raw, -p["sc_brake"] * min(sat - 1.0, 1.0) * vp.max_decel), -dec_max)
         self.a_cmd += p["a_smooth"] * (a_raw - self.a_cmd)
+        rear_slip = self._rear_slip(obs)
         if self.a_cmd < 0.0:
-            return 0.0, min(-self.a_cmd / vp.max_decel, 1.0), v_tgt
+            brake = min(-self.a_cmd / vp.max_decel, 1.0)
+            # brake release: braking while the rear slides only feeds the spin (the rear tyres need
+            # their grip to hold the car straight), so fade the brake out until the rear grips again
+            if v > 2.0 and rear_slip > self.bc_slip:
+                brake *= max(0.0, 1.0 - (rear_slip - self.bc_slip) / self.bc_band)
+            return 0.0, brake, v_tgt
         throttle = min((self.a_cmd + 0.15) / vp.max_accel, 1.0)
         # traction control: fade the throttle out as the rear axle starts to slide
-        rear_slip = abs(math.atan2(obs.vy - vp.cg_to_rear * obs.yaw_rate, max(abs(obs.vx), 0.1)))
         if v > 2.0 and rear_slip > self.tc_slip:
             throttle *= max(0.0, 1.0 - (rear_slip - self.tc_slip) / self.tc_band)
         return throttle, 0.0, v_tgt
@@ -318,6 +331,28 @@ class ApexPlanner(Controller):
             self.us_k_off += self.p["us_rate"] * (k_i - self.us_k_off)
         self.us_k = max(self.us_k_on, self.us_k_off)
 
+    # ------------------------------------------------------------------ braking limit
+    def _rear_slip(self, obs) -> float:
+        """Rear-axle slip angle magnitude (rad) from body velocities and yaw rate."""
+        return abs(math.atan2(obs.vy - self.vehicle.cg_to_rear * obs.yaw_rate, max(abs(obs.vx), 0.1)))
+
+    def _learn_braking(self, obs, v):
+        """Online estimate of how much of the published braking the car can use before the rear
+        steps out. CARLA's car turns unstable under hard braking where the bicycle model stays
+        straight, so the share drops each step the rear slides while braking, and creeps back
+        while hard braking stays clean. The speed plan then brakes earlier and more gently.
+        Cornering itself needs rear slip roughly in proportion to lateral acceleration, so only
+        the slip beyond that counts (a car stepping out under braking has slip without the ay)."""
+        p = self.p
+        if v < 5.0 or obs.brake < 0.1:
+            return
+        excess = self._rear_slip(obs) - math.radians(p["bl_ay_deg"]) * abs(obs.ay)
+        if excess > self.bl_slip:
+            self.brake_scale = max(p["bl_min"], self.brake_scale * (1.0 - p["bl_drop"]))
+        elif obs.brake > 0.3 and excess < 0.5 * self.bl_slip:
+            self.brake_scale += p["bl_rise"] * (1.0 - self.brake_scale)
+        self.a_dec = p["lon_frac"] * self.vehicle.max_decel * self.brake_scale
+
     # ------------------------------------------------------------------ step
     def step(self, obs: Observation) -> Command:
         try:
@@ -338,6 +373,7 @@ class ApexPlanner(Controller):
             return Command(steer=self.last_steer, brake=1.0)
         v = max(obs.speed, 0.0)
         self._learn_understeer(obs, v)
+        self._learn_braking(obs, v)
         lat = float(road.lateral_offset)
         warm = None
         if self.prev_n is not None:
@@ -356,4 +392,4 @@ class ApexPlanner(Controller):
         steer = self._steer(path, k, s, v, obs)
         throttle, brake, v_tgt = self._pedals(s, v_prof, v, obs)
         return Command(steer=steer, throttle=throttle, brake=brake, path=path, path_frame="vehicle",
-                       target_speed=v_tgt, debug={"n0": n0, "a_cmd": self.a_cmd, "us_k": self.us_k})
+                       target_speed=v_tgt, debug={"n0": n0, "a_cmd": self.a_cmd, "us_k": self.us_k, "brake_scale": self.brake_scale})
