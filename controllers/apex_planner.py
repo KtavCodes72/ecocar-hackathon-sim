@@ -42,7 +42,7 @@ DEFAULTS = {
     "w_curv": 1.0, "w_slope": 0.02, "w_prev": 0.02, "reanchor_m": 0.6, "ease_m": 8.0,
     # speed profile
     "lat_frac": 0.85,                                 # share of mu*g used for cornering
-    "lon_frac": 0.65,                                 # share of max braking used in planning
+    "lon_frac": 0.85,                                 # share of max braking used in planning
     "v_max": 30.0, "r_unseen": 15.0,                  # assumed radius just past the preview
     "narrow_frac": 0.7, "slack_ref": 2.5,             # cornering share where the hard corridor has no slack
     # lateral tracking
@@ -53,6 +53,10 @@ DEFAULTS = {
     "thr_pow": 2.0,                                   # throttle cap = (spare grip)^thr_pow while cornering
     "comb_frac": 0.85,                                # braking keeps combined accel within this share of mu*g
     "tc_slip_deg": 3.0, "tc_band_deg": 2.5,           # traction control fade-in
+    "us_k0": 0.0006, "us_rate": 0.02, "us_frac": 0.85,  # understeer: initial gradient K (ay = v^2 tan(d)/L / (1 + K v^2)),
+                                                      # learning rate, and share of capped-steering grip the plan may use
+    "sc_start": 0.70, "sc_brake": 0.3,                # stability control: steering-saturation share where the throttle
+                                                      # starts fading out (gone at 1.0), and brake added beyond it
 }
 
 
@@ -70,6 +74,11 @@ class ApexPlanner(Controller):
         self.prev_n = self.prev_s = self.prev_progress = None   # previous plan, for warm start / anchoring
         self.pass_side = {}            # obstacle key (rounded world position) -> +1 left / -1 right
         self.i_err = self.a_cmd = self.last_steer = 0.0
+        self.steer_sat = 0.0           # |steering wanted| / grip-limited steering, last step
+        # learned understeer gradient (s^2/m^2), separately on and off the throttle: with driven
+        # front wheels the car pushes much more under power
+        self.us_k_on = self.us_k_off = p["us_k0"]
+        self.us_k = p["us_k0"]          # the one the plan uses: the larger of the two
         self._qp_cache = {}            # (K, ds) -> constant QP matrices
 
     # ------------------------------------------------------------------ corridor
@@ -187,9 +196,17 @@ class ApexPlanner(Controller):
     # ------------------------------------------------------------------ speed profile
     def _speed_profile(self, k, s, v0, slack):
         p = self.p
+        a_dec = self.a_dec
         # where the corridor leaves little room to recover from a slide, corner more gently
         a_lat = self.a_lat * (p["narrow_frac"] + (1.0 - p["narrow_frac"]) * np.clip(slack / p["slack_ref"], 0.0, 1.0))
         v_lim = np.minimum(np.sqrt(a_lat / np.maximum(np.abs(k), 1e-4)), p["v_max"])
+        if self.us_k > 0.0:
+            # steering authority: |k| v^2 (1 + K v^2) <= A, with A the grip the capped steering can
+            # ask for; solve the quadratic in v^2
+            A = p["us_frac"] * p["grip_cap"] * self.vehicle.mu * G
+            ka = np.maximum(np.abs(k), 1e-4)
+            u = (-ka + np.sqrt(ka * ka + 4.0 * self.us_k * ka * A)) / (2.0 * self.us_k * ka)
+            v_lim = np.minimum(v_lim, np.sqrt(u))
         # sight distance: the end of the preview may hide a tight corner, so arrive there slow
         # enough for it. This goes through the same friction-ellipse braking pass as visible
         # corners on purpose: on a sweeper near the cornering limit the car genuinely cannot
@@ -198,7 +215,7 @@ class ApexPlanner(Controller):
         v, ds, a_acc = v_lim.copy(), np.diff(s), self.vehicle.max_accel
         for i in range(len(v) - 2, -1, -1):                 # braking envelope, from the horizon back
             use = min(v[i + 1] ** 2 * abs(k[i + 1]) / a_lat[i + 1], 1.0)
-            v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2.0 * self.a_dec * math.sqrt(max(1.0 - use * use, 0.05)) * ds[i]))
+            v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2.0 * a_dec * math.sqrt(max(1.0 - use * use, 0.05)) * ds[i]))
         fwd = v.copy()                                      # accelerate from the current speed
         fwd[0] = min(v[0], v0)
         for i in range(len(v) - 1):
@@ -227,8 +244,10 @@ class ApexPlanner(Controller):
         delta = math.atan(vp.wheelbase * (k_ff - e / (ell * ell) - 2.0 * p["zeta"] * th_err / ell))
         # never command more steering than the tyres can use at this speed (the realism score
         # flags commands needing >110% of grip, and they only scrub speed anyway)
+        self.steer_sat = 0.0
         if v > 3.0:
             d_max = math.atan(p["grip_cap"] * vp.mu * G * vp.wheelbase / (v * v))
+            self.steer_sat = abs(delta) / d_max
             delta = min(max(delta, -d_max), d_max)
         steer = min(max(delta / vp.max_steer, -1.0), 1.0)
         return min(max(steer, self.last_steer - self.steer_step), self.last_steer + self.steer_step)
@@ -248,6 +267,13 @@ class ApexPlanner(Controller):
         a_tot = p["comb_frac"] * vp.mu * G
         dec_max = max(min(vp.max_decel, math.sqrt(max(a_tot ** 2 - obs.ay ** 2, 0.0))), 0.3 * vp.max_decel * spare)
         a_raw = min(max(a_raw, -dec_max), vp.max_accel * max(spare ** p["thr_pow"], 0.15))
+        # stability control: when the steering is running out of grip (driven front wheels push
+        # wide under power), stop accelerating so the tyres can turn; past the limit, brake gently
+        sat = self.steer_sat
+        if sat > p["sc_start"] and a_raw > 0.0:
+            a_raw *= max(0.0, (1.0 - sat) / (1.0 - p["sc_start"]))
+        if sat > 1.0 and p["sc_brake"] > 0.0:
+            a_raw = min(a_raw, -p["sc_brake"] * min(sat - 1.0, 1.0) * vp.max_decel)
         self.a_cmd += p["a_smooth"] * (a_raw - self.a_cmd)
         if self.a_cmd < 0.0:
             return 0.0, min(-self.a_cmd / vp.max_decel, 1.0), v_tgt
@@ -257,6 +283,27 @@ class ApexPlanner(Controller):
         if v > 2.0 and rear_slip > self.tc_slip:
             throttle *= max(0.0, 1.0 - (rear_slip - self.tc_slip) / self.tc_band)
         return throttle, 0.0, v_tgt
+
+    # ------------------------------------------------------------------ understeer model
+    def _learn_understeer(self, obs, v):
+        """Online estimate of the understeer gradient K from the measured lateral acceleration
+        vs. what the applied road-wheel angle would give a neutral car: ay = ay_kin / (1 + K v^2).
+        The car (and CARLA vs the bicycle model) loses steering authority with speed; the speed
+        plan uses K so it never asks for more cornering than the grip-capped steering delivers."""
+        vp = self.vehicle
+        delta = obs.steer * vp.max_steer
+        if v < 8.0 or abs(delta) < 0.01 or abs(obs.ay) < 1.5:
+            return
+        ay_kin = v * v * math.tan(delta) / vp.wheelbase
+        ratio = obs.ay / ay_kin
+        if not 0.2 < ratio < 1.5:
+            return
+        k_i = min(max((1.0 / ratio - 1.0) / (v * v), 0.0), 0.01)
+        if obs.throttle > 0.3:
+            self.us_k_on += self.p["us_rate"] * (k_i - self.us_k_on)
+        elif obs.throttle < 0.05:
+            self.us_k_off += self.p["us_rate"] * (k_i - self.us_k_off)
+        self.us_k = max(self.us_k_on, self.us_k_off)
 
     # ------------------------------------------------------------------ step
     def step(self, obs: Observation) -> Command:
@@ -277,6 +324,7 @@ class ApexPlanner(Controller):
         if road is None or not road.valid or len(road.preview_s) < 5:
             return Command(steer=self.last_steer, brake=1.0)
         v = max(obs.speed, 0.0)
+        self._learn_understeer(obs, v)
         lat = float(road.lateral_offset)
         warm = None
         if self.prev_n is not None:
@@ -295,4 +343,4 @@ class ApexPlanner(Controller):
         steer = self._steer(path, k, s, v, obs)
         throttle, brake, v_tgt = self._pedals(s, v_prof, v, obs)
         return Command(steer=steer, throttle=throttle, brake=brake, path=path, path_frame="vehicle",
-                       target_speed=v_tgt, debug={"n0": n0, "a_cmd": self.a_cmd})
+                       target_speed=v_tgt, debug={"n0": n0, "a_cmd": self.a_cmd, "us_k": self.us_k})
