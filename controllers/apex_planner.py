@@ -50,7 +50,7 @@ class ApexPlanner(Controller):
         self.k_ld = float(c.get("lookahead_gain", 0.5))
         self.ld_min = float(c.get("lookahead_min", 2.0))
         self.tracker = str(c.get("tracker", "ff"))                 # pp = pure pursuit, ff = feedforward+feedback
-        self.t_pred = float(c.get("t_pred", 0.10))                 # s, actuator-lag prediction
+        self.t_pred = float(c.get("t_pred", 0.12))                 # s, actuator-lag prediction
         self.ff_ahead = float(c.get("ff_ahead", 0.05))             # s, feedforward curvature preview
         self.ell_gain = float(c.get("ell_gain", 0.30))
         self.ell_min = float(c.get("ell_min", 3.0))

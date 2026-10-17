@@ -1,0 +1,29 @@
+name: bench_3
+closed: false
+width: 5.5
+cone_spacing: 5.0
+start_offset: 8.0
+finish_runoff: 40.0
+origin: [0.0, 0.0, 0.0]
+segments:
+- {type: straight, length: 30.0}
+- {type: slalom, cycles: 2, wavelength: 29.3, swing: 2.2, first: left}
+- {type: slalom, cycles: 3, wavelength: 27.3, swing: 2.7, first: left}
+- {type: straight, length: 14.3}
+- {type: arc, radius: 9.3, angle: 157.1, width: 6.5}
+- {type: straight, length: 20.7}
+- {type: slalom, cycles: 1, wavelength: 30.7, swing: 2.7, first: left}
+- {type: arc, radius: 18.6, angle: -105.3}
+- {type: slalom, cycles: 3, wavelength: 27.3, swing: 2.8, first: right}
+- {type: slalom, cycles: 3, wavelength: 28.2, swing: 2.3, first: right}
+- {type: arc, radius: 43.1, angle: -63.5}
+- {type: arc, radius: 13.3, angle: -76.5}
+- {type: slalom, cycles: 3, wavelength: 24.0, swing: 2.9, first: left}
+- {type: slalom, cycles: 1, wavelength: 30.8, swing: 2.7, first: left}
+- {type: arc, radius: 33.6, angle: -48.4}
+- {type: straight, length: 55.0}
+obstacles:
+- {s: 79.9, offset: -1.63, width: 1.65}
+- {s: 271.7, offset: 1.61, width: 1.69}
+- {s: 457.1, offset: -1.7, width: 1.5}
+- {s: 573.4, offset: 1.77, width: 1.35}
