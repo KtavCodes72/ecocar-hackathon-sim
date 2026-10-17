@@ -57,7 +57,7 @@ DEFAULTS = {
     "grip_cap": 1.08,                                 # max steer as a share of grip-limited steer
     # longitudinal
     "kp": 0.6, "ki": 0.15, "a_smooth": 0.5,
-    "thr_pow": 2.0,                                   # throttle cap = (spare grip)^thr_pow while cornering
+    "thr_pow": 1.25,                                  # throttle cap = (spare grip)^thr_pow while cornering
     "comb_frac": 0.85,                                # braking keeps combined accel within this share of mu*g
     "tc_slip_deg": 3.0, "tc_band_deg": 2.5,           # traction control fade-in
     "us_k0": 0.0006, "us_rate": 0.02, "us_frac": 0.85, "us_v_min": 15.0,  # understeer: initial gradient K (ay = v^2 tan(d)/L / (1 + K v^2)),
